@@ -9,6 +9,8 @@ import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters.command import Command
 
+from modules import functions
+
 load_dotenv()
 
 
@@ -25,7 +27,11 @@ dp = Dispatcher()
 # Хэндлер на команду /start
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
-    await message.answer("Hello!")
+    user_name = message.from_user.first_name # имя аккаунта telegram
+    telegram_id = message.from_user.id # telegram id аккаунта
+
+    # вызываем нашу функцию ответственную за логику
+    await functions.start_function(message, bot, user_name, telegram_id)
 
 
 async def main() -> None:
