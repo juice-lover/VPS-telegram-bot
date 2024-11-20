@@ -8,7 +8,8 @@ import asyncio
 import logging
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters.command import Command, CommandObject
-from aiogram.types import LabeledPrice
+from aiogram.types import LabeledPrice, PreCheckoutQuery
+from aiogram.exceptions import TelegramBadRequest
 
 from modules import functions, keyboard
 
@@ -84,6 +85,54 @@ async def stars_pay_command(message: types.Message, command: CommandObject):
         currency="XTR"
     )
 
+
+@dp.pre_checkout_query()
+async def on_pre_checkout_query(
+    pre_checkout_query: PreCheckoutQuery,
+):
+    await pre_checkout_query.answer(ok=True)
+
+
+@dp.message(F.successful_payment)
+async def on_successful_payment(message: types.Message):
+    telegram_id = message.from_user.id  # telegram id аккаунта
+    sticker_key = "CAACAgIAAxkBAAENLipnPhlg7fcgRxM-LtHZx4ue-puabgACAQcAAkb7rASX2-SMiGVeMDYE"
+    await bot.send_sticker(chat_id=telegram_id, sticker=sticker_key)
+    await message.answer(f"Спасибо за покупку!\n\n"
+                         f"Ваш хеш транзакции: {message.successful_payment.telegram_payment_charge_id}\n\n"
+                         f"Пожалуйста, сохраните хеш транзакции. Он понадобится в случае возврата средств.\n\n"
+                         f"Приятного использования нашего бота!",
+                         message_effect_id="5104841245755180586")
+
+
+@dp.message(Command("refund"))
+async def cmd_refund(message: types.Message, command: CommandObject):
+    transaction_id = command.args
+    if transaction_id is None:
+        await message.answer(
+            "тут как правильно ввести комманду"
+        )
+        return
+
+    try:
+        telegram_id = message.from_user.id  # telegram id аккаунта
+
+        await bot.refund_star_payment(user_id=telegram_id, telegram_payment_charge_id=transaction_id)
+        await message.answer("Возврат произведён успешно. Потраченные звёзды уже вернулись на ваш счёт в Telegram.", message_effect_id="5104841245755180586")
+
+    except TelegramBadRequest as error:
+
+        if "CHARGE_NOT_FOUND" in error.message:
+            text = "Такой код покупки не найден. Пожалуйста, проверьте вводимые данные и повторите ещё раз."
+        elif "CHARGE_ALREADY_REFUNDED" in error.message:
+            text = "За эту покупку уже ранее был произведён возврат средств."
+        else:
+            # При всех остальных ошибках – такой же текст,
+            # как и в первом случае
+            text = "Такой код покупки не найден. Пожалуйста, проверьте вводимые данные и повторите ещё раз."
+
+        await message.answer(text)
+        return
 
 
 async def main() -> None:
